@@ -14,56 +14,86 @@ logger = logging.getLogger(__name__)
 
 async def save_upload_file(upload_file: UploadFile) -> Dict[str, Any]:
     """
-    Save an uploaded file to the uploads directory and optionally to Cloudinary
+    Save an uploaded file to Cloudinary or local storage
     
     Args:
         upload_file: The uploaded file
         
     Returns:
-        Dict containing file path and Cloudinary info if enabled
+        Dict containing file path and Cloudinary info
     """
     # Check if the file is allowed
     if not is_allowed_file(upload_file.filename):
         raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed types: {', '.join(settings.ALLOWED_EXTENSIONS)}")
     
-    # Create uploads directory if it doesn't exist
-    os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
-    
-    # Generate a unique filename
-    file_extension = os.path.splitext(upload_file.filename)[1]
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = os.path.join(settings.UPLOAD_FOLDER, unique_filename)
-    
-    # Save the file
     try:
-        async with aiofiles.open(file_path, 'wb') as out_file:
-            content = await upload_file.read()
-            
-            # Check file size
-            if len(content) > settings.MAX_CONTENT_LENGTH:
-                raise HTTPException(status_code=413, detail=f"File too large. Maximum size: {settings.MAX_CONTENT_LENGTH / 1024 / 1024}MB")
-            
-            await out_file.write(content)
+        # Read file content
+        content = await upload_file.read()
         
-        logger.info(f"File saved successfully: {file_path}")
+        # Check file size
+        if len(content) > settings.MAX_CONTENT_LENGTH:
+            raise HTTPException(status_code=413, detail=f"File too large. Maximum size: {settings.MAX_CONTENT_LENGTH / 1024 / 1024}MB")
         
-        # Upload to Cloudinary if enabled
+        # Generate a unique filename
+        file_extension = os.path.splitext(upload_file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        
+        # Try to upload to Cloudinary first if enabled
         cloudinary_result = None
         if settings.USE_CLOUDINARY:
             try:
+                # Create a temporary file for Cloudinary upload
+                temp_file_path = os.path.join("/tmp", unique_filename)
+                async with aiofiles.open(temp_file_path, 'wb') as temp_file:
+                    await temp_file.write(content)
+                
+                # Upload to Cloudinary
                 cloudinary_result = await run_in_threadpool(
-                    lambda: upload_image(file_path, folder="snapped_ai_uploads")
+                    lambda: upload_image(temp_file_path, folder="snapped_ai_uploads")
                 )
+                
+                # Remove temporary file
+                os.remove(temp_file_path)
+                
                 logger.info(f"File uploaded to Cloudinary: {cloudinary_result.get('public_id')}")
+                
+                # If Cloudinary upload is successful and we're using Cloudinary exclusively,
+                # we don't need to save the file locally
+                if not settings.SAVE_LOCAL_COPY:
+                    return {
+                        "file_path": cloudinary_result.get("secure_url"),  # Use Cloudinary URL as file path
+                        "cloudinary_public_id": cloudinary_result.get("public_id"),
+                        "cloudinary_url": cloudinary_result.get("secure_url")
+                    }
             except Exception as e:
                 logger.error(f"Error uploading to Cloudinary: {str(e)}")
-                # Continue with local file if Cloudinary upload fails
+                # If Cloudinary is required but failed, raise an exception
+                if settings.REQUIRE_CLOUDINARY:
+                    raise HTTPException(status_code=500, detail=f"Error uploading to Cloudinary: {str(e)}")
+                # Otherwise, continue with local file
+        
+        # Save locally if Cloudinary is not enabled, failed, or we want a local copy
+        # Create uploads directory if it doesn't exist
+        os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
+        file_path = os.path.join(settings.UPLOAD_FOLDER, unique_filename)
+        
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            # Seek to the beginning if we've already read the content
+            if upload_file.file.tell() > 0:
+                await upload_file.seek(0)
+                content = await upload_file.read()
+            await out_file.write(content)
+        
+        logger.info(f"File saved locally: {file_path}")
         
         return {
             "file_path": file_path,
             "cloudinary_public_id": cloudinary_result.get("public_id") if cloudinary_result else None,
             "cloudinary_url": cloudinary_result.get("secure_url") if cloudinary_result else None
         }
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error saving file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
@@ -82,18 +112,45 @@ async def clip_image(image_path: str, x: int, y: int, width: int, height: int,
         original_cloudinary_id: Cloudinary public ID of the original image
         
     Returns:
-        Dict containing file path and Cloudinary info if enabled
+        Dict containing file path and Cloudinary info
     """
     # Validate input parameters
     if width <= 0 or height <= 0:
         raise HTTPException(status_code=400, detail="Width and height must be positive")
     
-    # Run the image processing in a thread pool to avoid blocking the event loop
     try:
+        # Check if we can use Cloudinary's cropping functionality directly
+        if settings.USE_CLOUDINARY and original_cloudinary_id:
+            try:
+                # Use Cloudinary's transformation API to crop the image
+                from app.services.cloudinary_service import crop_image
+                
+                cloudinary_result = await run_in_threadpool(
+                    lambda: crop_image(original_cloudinary_id, x, y, width, height, folder="snapped_ai_clipped")
+                )
+                
+                logger.info(f"Image clipped directly in Cloudinary: {cloudinary_result.get('public_id')}")
+                
+                # If we're using Cloudinary exclusively, return the Cloudinary URL as the file path
+                if not settings.SAVE_LOCAL_COPY:
+                    return {
+                        "file_path": cloudinary_result.get("secure_url"),
+                        "cloudinary_public_id": cloudinary_result.get("public_id"),
+                        "cloudinary_url": cloudinary_result.get("secure_url"),
+                        "original_cloudinary_public_id": original_cloudinary_id
+                    }
+            except Exception as e:
+                logger.error(f"Error clipping image in Cloudinary: {str(e)}")
+                # If Cloudinary is required but failed, raise an exception
+                if settings.REQUIRE_CLOUDINARY:
+                    raise HTTPException(status_code=500, detail=f"Error clipping image in Cloudinary: {str(e)}")
+                # Otherwise, continue with local processing
+        
+        # Process locally if Cloudinary direct cropping is not available or failed
         clipped_image_path = await run_in_threadpool(
             _clip_image_sync, image_path, x, y, width, height
         )
-        logger.info(f"Image clipped successfully: {clipped_image_path}")
+        logger.info(f"Image clipped locally: {clipped_image_path}")
         
         # Upload to Cloudinary if enabled
         cloudinary_result = None
@@ -103,9 +160,23 @@ async def clip_image(image_path: str, x: int, y: int, width: int, height: int,
                     lambda: upload_image(clipped_image_path, folder="snapped_ai_clipped")
                 )
                 logger.info(f"Clipped image uploaded to Cloudinary: {cloudinary_result.get('public_id')}")
+                
+                # If we're using Cloudinary exclusively and don't need local copies,
+                # we can remove the local file after uploading to Cloudinary
+                if not settings.SAVE_LOCAL_COPY:
+                    os.remove(clipped_image_path)
+                    return {
+                        "file_path": cloudinary_result.get("secure_url"),
+                        "cloudinary_public_id": cloudinary_result.get("public_id"),
+                        "cloudinary_url": cloudinary_result.get("secure_url"),
+                        "original_cloudinary_public_id": original_cloudinary_id
+                    }
             except Exception as e:
                 logger.error(f"Error uploading clipped image to Cloudinary: {str(e)}")
-                # Continue with local file if Cloudinary upload fails
+                # If Cloudinary is required but failed, raise an exception
+                if settings.REQUIRE_CLOUDINARY:
+                    raise HTTPException(status_code=500, detail=f"Error uploading clipped image to Cloudinary: {str(e)}")
+                # Otherwise, continue with local file
         
         return {
             "file_path": clipped_image_path,
@@ -113,6 +184,9 @@ async def clip_image(image_path: str, x: int, y: int, width: int, height: int,
             "cloudinary_url": cloudinary_result.get("secure_url") if cloudinary_result else None,
             "original_cloudinary_public_id": original_cloudinary_id
         }
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error clipping image: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error clipping image: {str(e)}")

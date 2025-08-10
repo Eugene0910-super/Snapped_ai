@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
     CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
     CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
+    SAVE_LOCAL_COPY: bool = os.getenv("SAVE_LOCAL_COPY", "true").lower() == "true"
+    REQUIRE_CLOUDINARY: bool = os.getenv("REQUIRE_CLOUDINARY", "false").lower() == "true"
     
     # Server settings
     HOST: str = os.getenv("HOST", "0.0.0.0")

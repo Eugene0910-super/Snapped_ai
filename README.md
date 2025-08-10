@@ -129,7 +129,7 @@ The application is optimized for fast response times:
 
 ## Image Storage Options
 
-The application supports two options for storing uploaded images:
+The application supports three options for storing uploaded images:
 
 1. **Local Storage** (default):
    - Images are stored in the `app/static/uploads` directory
@@ -137,24 +137,55 @@ The application supports two options for storing uploaded images:
    - Simple setup with no external dependencies
    - Suitable for development and small-scale deployments
 
-2. **Cloudinary Storage** (optional):
-   - Images are stored in the Cloudinary cloud service
+2. **Hybrid Storage** (optional):
+   - Images are stored both locally and in Cloudinary
+   - Provides redundancy and flexibility
+   - Uses Cloudinary for public URLs when available
+   - Falls back to local storage if Cloudinary is unavailable
+
+3. **Cloudinary-Only Storage** (recommended for production):
+   - Images are stored exclusively in Cloudinary
+   - No local storage of images (only temporary files during processing)
    - Automatic CDN distribution for faster global access
    - Image transformations and optimizations
    - Better scalability for production deployments
+   - Direct cropping in Cloudinary for better performance
+
+### Enabling Cloudinary Storage
 
 To enable Cloudinary storage:
 1. Install the Cloudinary package: `pip install cloudinary`
 2. Set up your Cloudinary credentials in the `.env` file:
-   ```
-   CLOUDINARY_CLOUD_NAME=your_cloud_name
-   CLOUDINARY_API_KEY=your_api_key
-   CLOUDINARY_API_SECRET=your_api_secret
-   USE_CLOUDINARY=true
-   ```
+
+#### For Hybrid Storage (both local and Cloudinary):
+```
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+USE_CLOUDINARY=true
+SAVE_LOCAL_COPY=true
+REQUIRE_CLOUDINARY=false
+```
+
+#### For Cloudinary-Only Storage (recommended for production):
+```
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+USE_CLOUDINARY=true
+SAVE_LOCAL_COPY=false
+REQUIRE_CLOUDINARY=true
+```
+
 3. Restart the application
 
-The application will automatically fall back to local storage if Cloudinary is not available or if there's an error uploading to Cloudinary.
+### Cloudinary Configuration Options
+
+- `USE_CLOUDINARY`: Enable or disable Cloudinary integration
+- `SAVE_LOCAL_COPY`: Whether to save a local copy of images in addition to Cloudinary
+- `REQUIRE_CLOUDINARY`: If true, the application will raise an error if Cloudinary upload fails; if false, it will fall back to local storage
+
+The application will automatically use the appropriate storage method based on your configuration.
 
 ## Running with Redis Cache
 

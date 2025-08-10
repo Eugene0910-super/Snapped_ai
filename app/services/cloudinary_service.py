@@ -161,3 +161,91 @@ def transform_image(public_id: str, width: int = 300, height: int = 300, crop: s
     except Exception as e:
         logger.error(f"Error transforming image with Cloudinary: {str(e)}", exc_info=True)
         return ""
+
+
+def crop_image(public_id: str, x: int, y: int, width: int, height: int, folder: str = "snapped_ai_clipped") -> Dict:
+    """
+    Crop an image in Cloudinary using the explicit method with eager transformations.
+    
+    Args:
+        public_id: Cloudinary public ID of the image to crop
+        x: X coordinate of the top-left corner
+        y: Y coordinate of the top-left corner
+        width: Width of the cropped area
+        height: Height of the cropped area
+        folder: Cloudinary folder to store the cropped image
+        
+    Returns:
+        Dict containing the result with public_id, secure_url, etc.
+    """
+    if not CLOUDINARY_AVAILABLE or not settings.USE_CLOUDINARY or not public_id:
+        logger.warning("Cloudinary not available or disabled. Cannot crop image.")
+        return {
+            "public_id": None,
+            "secure_url": None,
+            "resource_type": "image",
+            "created_at": None,
+            "tags": [],
+            "url": "",
+        }
+    
+    try:
+        logger.info(f"Cropping image in Cloudinary: {public_id}, x={x}, y={y}, width={width}, height={height}")
+        
+        # Create a new cropped version with a unique name
+        crop_transformation = {
+            "crop": "crop",
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        }
+        
+        # Generate a new public_id for the cropped image
+        new_public_id = f"{folder}/{os.path.basename(public_id)}_cropped"
+        
+        # Create a new cropped image using the explicit method with eager transformations
+        result = cloudinary.uploader.explicit(
+            public_id,
+            type="upload",
+            eager=[crop_transformation],
+            eager_async=False,
+            eager_notification_url=None
+        )
+        
+        # If eager transformation was successful, get the transformed URL
+        if result and "eager" in result and len(result["eager"]) > 0:
+            # Create a new image with the cropped version
+            upload_result = cloudinary.uploader.upload(
+                result["eager"][0]["secure_url"],
+                public_id=new_public_id,
+                overwrite=True
+            )
+            logger.info(f"Image cropped successfully in Cloudinary: {upload_result['public_id']}")
+            return upload_result
+        else:
+            # Fallback: create a URL with transformation parameters
+            transformed_url = cloudinary.CloudinaryImage(public_id).build_url(
+                transformation=[crop_transformation],
+                secure=True
+            )
+            
+            # Upload the transformed image as a new image
+            upload_result = cloudinary.uploader.upload(
+                transformed_url,
+                public_id=new_public_id,
+                overwrite=True
+            )
+            logger.info(f"Image cropped successfully in Cloudinary (fallback): {upload_result['public_id']}")
+            return upload_result
+            
+    except Exception as e:
+        logger.error(f"Error cropping image in Cloudinary: {str(e)}", exc_info=True)
+        return {
+            "public_id": None,
+            "secure_url": None,
+            "resource_type": "image",
+            "created_at": None,
+            "tags": [],
+            "url": "",
+        }
