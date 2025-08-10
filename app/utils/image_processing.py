@@ -1,9 +1,15 @@
 import os
 import uuid
+import logging
+from typing import Tuple, Optional
 from PIL import Image
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 import aiofiles
 from app.core.config import settings
+from app.utils.performance import run_in_threadpool
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 async def save_upload_file(upload_file: UploadFile) -> str:
     """
@@ -15,6 +21,10 @@ async def save_upload_file(upload_file: UploadFile) -> str:
     Returns:
         The path to the saved file
     """
+    # Check if the file is allowed
+    if not is_allowed_file(upload_file.filename):
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed types: {', '.join(settings.ALLOWED_EXTENSIONS)}")
+    
     # Create uploads directory if it doesn't exist
     os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
     
@@ -24,11 +34,21 @@ async def save_upload_file(upload_file: UploadFile) -> str:
     file_path = os.path.join(settings.UPLOAD_FOLDER, unique_filename)
     
     # Save the file
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await upload_file.read()
-        await out_file.write(content)
-    
-    return file_path
+    try:
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            content = await upload_file.read()
+            
+            # Check file size
+            if len(content) > settings.MAX_CONTENT_LENGTH:
+                raise HTTPException(status_code=413, detail=f"File too large. Maximum size: {settings.MAX_CONTENT_LENGTH / 1024 / 1024}MB")
+            
+            await out_file.write(content)
+        
+        logger.info(f"File saved successfully: {file_path}")
+        return file_path
+    except Exception as e:
+        logger.error(f"Error saving file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
 async def clip_image(image_path: str, x: int, y: int, width: int, height: int) -> str:
     """
@@ -44,20 +64,120 @@ async def clip_image(image_path: str, x: int, y: int, width: int, height: int) -
     Returns:
         The path to the clipped image
     """
+    # Validate input parameters
+    if width <= 0 or height <= 0:
+        raise HTTPException(status_code=400, detail="Width and height must be positive")
+    
+    # Run the image processing in a thread pool to avoid blocking the event loop
+    try:
+        clipped_image_path = await run_in_threadpool(
+            _clip_image_sync, image_path, x, y, width, height
+        )
+        logger.info(f"Image clipped successfully: {clipped_image_path}")
+        return clipped_image_path
+    except Exception as e:
+        logger.error(f"Error clipping image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error clipping image: {str(e)}")
+
+def _clip_image_sync(image_path: str, x: int, y: int, width: int, height: int) -> str:
+    """
+    Synchronous version of clip_image for use with run_in_threadpool
+    """
     # Open the image
     img = Image.open(image_path)
+    
+    # Validate coordinates
+    img_width, img_height = img.size
+    if x < 0 or y < 0 or x + width > img_width or y + height > img_height:
+        raise ValueError(f"Invalid crop coordinates. Image dimensions: {img_width}x{img_height}")
     
     # Clip the image
     clipped_img = img.crop((x, y, x + width, y + height))
     
     # Generate a new filename for the clipped image
-    file_name, file_extension = os.path.splitext(image_path)
-    clipped_image_path = f"{file_name}_clipped{file_extension}"
+    file_name, file_extension = os.path.splitext(os.path.basename(image_path))
+    clipped_filename = f"{file_name}_clipped{file_extension}"
+    clipped_image_path = os.path.join(settings.UPLOAD_FOLDER, clipped_filename)
     
     # Save the clipped image
     clipped_img.save(clipped_image_path)
     
     return clipped_image_path
+
+async def get_image_dimensions(image_path: str) -> Tuple[int, int]:
+    """
+    Get the dimensions of an image
+    
+    Args:
+        image_path: Path to the image
+        
+    Returns:
+        Tuple of (width, height)
+    """
+    try:
+        dimensions = await run_in_threadpool(
+            lambda: Image.open(image_path).size
+        )
+        return dimensions
+    except Exception as e:
+        logger.error(f"Error getting image dimensions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting image dimensions: {str(e)}")
+
+async def optimize_image(image_path: str, max_size: Optional[int] = None) -> str:
+    """
+    Optimize an image for web use
+    
+    Args:
+        image_path: Path to the image
+        max_size: Maximum dimension (width or height) in pixels
+        
+    Returns:
+        Path to the optimized image
+    """
+    try:
+        optimized_path = await run_in_threadpool(
+            _optimize_image_sync, image_path, max_size
+        )
+        logger.info(f"Image optimized successfully: {optimized_path}")
+        return optimized_path
+    except Exception as e:
+        logger.error(f"Error optimizing image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error optimizing image: {str(e)}")
+
+def _optimize_image_sync(image_path: str, max_size: Optional[int] = None) -> str:
+    """
+    Synchronous version of optimize_image for use with run_in_threadpool
+    """
+    # Open the image
+    img = Image.open(image_path)
+    
+    # Resize if needed
+    if max_size:
+        width, height = img.size
+        if width > max_size or height > max_size:
+            if width > height:
+                new_width = max_size
+                new_height = int(height * (max_size / width))
+            else:
+                new_height = max_size
+                new_width = int(width * (max_size / height))
+            
+            img = img.resize((new_width, new_height), Image.LANCZOS)
+    
+    # Generate a new filename for the optimized image
+    file_name, file_extension = os.path.splitext(os.path.basename(image_path))
+    optimized_filename = f"{file_name}_optimized{file_extension}"
+    optimized_path = os.path.join(settings.UPLOAD_FOLDER, optimized_filename)
+    
+    # Save the optimized image with reduced quality
+    if file_extension.lower() in ['.jpg', '.jpeg']:
+        img.save(optimized_path, quality=85, optimize=True)
+    elif file_extension.lower() == '.png':
+        img.save(optimized_path, optimize=True)
+    else:
+        img.save(optimized_path)
+    
+    return optimized_path
 
 def is_allowed_file(filename: str) -> bool:
     """
@@ -69,5 +189,8 @@ def is_allowed_file(filename: str) -> bool:
     Returns:
         True if the file has an allowed extension, False otherwise
     """
+    if not filename:
+        return False
+    
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in settings.ALLOWED_EXTENSIONS
