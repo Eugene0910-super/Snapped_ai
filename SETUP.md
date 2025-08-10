@@ -1,6 +1,6 @@
-# Windows Setup Guide for Snapped AI
+# Setup Guide for Snapped AI
 
-This guide will help you set up and run the Snapped AI application on Windows.
+This guide will help you set up and run the Snapped AI application on any platform.
 
 ## Prerequisites
 
@@ -10,34 +10,7 @@ This guide will help you set up and run the Snapped AI application on Windows.
 
 ## Installation
 
-### Simple Setup (Works on Windows and Unix)
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/Eugene0910-super/Snapped_ai.git
-   cd Snapped_ai
-   ```
-
-2. Run the setup script:
-   ```
-   python run.py
-   ```
-
-3. The script will:
-   - Create a virtual environment
-   - Install dependencies
-   - Create a `.env` file (if it doesn't exist)
-   - Initialize the database
-   - Start the application
-
-4. Open the `.env` file and replace `your_serpapi_key_here` with your actual SerpAPI key.
-
-5. Run the script again:
-   ```
-   python run.py
-   ```
-
-### Manual Setup
+### Setup Steps
 
 1. Clone the repository:
    ```
@@ -48,8 +21,12 @@ This guide will help you set up and run the Snapped AI application on Windows.
 2. Create a virtual environment:
    ```
    python -m venv venv
-   venv\Scripts\activate  # On Windows
-   source venv/bin/activate  # On Unix
+   
+   # On Windows
+   venv\Scripts\activate
+   
+   # On Unix (Linux/Mac)
+   source venv/bin/activate
    ```
 
 3. Install dependencies:
@@ -72,6 +49,11 @@ This guide will help you set up and run the Snapped AI application on Windows.
    ```
 
 6. Run the application:
+   ```
+   python run.py
+   ```
+   
+   Or directly with uvicorn:
    ```
    python -m uvicorn app.main:app --host 127.0.0.1 --port 12000 --reload
    ```
