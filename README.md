@@ -29,36 +29,63 @@ A FastAPI backend for finding similar products from uploaded images.
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/Snapped_ai.git
+   git clone https://github.com/Eugene0910-super/Snapped_ai.git
    cd Snapped_ai
    ```
 
-2. Install dependencies:
+2. Create a virtual environment:
+   ```
+   python -m venv venv
+   
+   # On Windows
+   venv\Scripts\activate
+   
+   # On Unix (Linux/Mac)
+   source venv/bin/activate
+   ```
+
+3. Install dependencies:
    ```
    pip install -r requirements.txt
    ```
 
-3. Set up environment variables:
-   - Create a `.env` file in the `app` directory
+4. Set up environment variables:
+   - Create a `.env` file in the root directory
    - Add your SerpAPI API key and other configuration options:
      ```
      SERPAPI_API_KEY=your_serpapi_api_key
      DATABASE_URL=sqlite:///./app.db
      MAX_SIMILAR_PRODUCTS=30
-     HOST=0.0.0.0
+     HOST=127.0.0.1
      PORT=12000
      ```
 
-4. Run the application:
+5. Initialize the database:
+   ```
+   python -c "from app.db.init_db import init_db; import asyncio; asyncio.run(init_db())"
+   ```
+
+6. Run the application:
    ```
    python run.py
    ```
+
+For more detailed setup instructions, see [SETUP.md](SETUP.md).
 
 ## API Documentation
 
 Once the application is running, you can access the API documentation at:
 - Swagger UI: `http://localhost:12000/docs`
 - ReDoc: `http://localhost:12000/redoc`
+
+## Python Compatibility
+
+This application is compatible with:
+- Python 3.9
+- Python 3.10
+- Python 3.11
+- Python 3.12
+- Python 3.13 (using SQLAlchemy 1.4)
 
 ## Performance Optimization
 
@@ -71,7 +98,7 @@ The application is optimized for fast response times:
 
 2. **Caching Strategy**:
    - In-memory caching for development
-   - Redis caching for production
+   - Redis caching for production (optional)
    - Configurable TTL for cached results
 
 3. **Database Optimization**:

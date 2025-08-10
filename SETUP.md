@@ -66,6 +66,10 @@ This guide will help you set up and run the Snapped AI application on any platfo
    - Clip the image if needed
    - Search for similar products
 
+## Python 3.13 Compatibility
+
+If you're using Python 3.13, the application uses SQLAlchemy 1.4 instead of 2.0 due to compatibility issues with Python 3.13's typing system. This is handled automatically in the requirements.txt file.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -73,7 +77,7 @@ This guide will help you set up and run the Snapped AI application on any platfo
 1. **Installation errors**: Try installing dependencies one by one:
    ```
    pip install fastapi uvicorn python-multipart httpx pillow python-dotenv
-   pip install sqlalchemy aiofiles pydantic
+   pip install sqlalchemy==1.4.50 aiofiles pydantic==1.10.13
    pip install waitress
    ```
 
@@ -87,7 +91,12 @@ This guide will help you set up and run the Snapped AI application on any platfo
    python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
-4. **Python version compatibility**: This application is tested with Python 3.9-3.13. If you're using a different version, you may need to adjust the dependencies.
+4. **SQLAlchemy errors with Python 3.13**: If you see errors related to SQLAlchemy and typing, make sure you're using SQLAlchemy 1.4.x:
+   ```
+   pip install sqlalchemy==1.4.50
+   ```
+
+5. **Python version compatibility**: This application is tested with Python 3.9-3.13. If you're using a different version, you may need to adjust the dependencies.
 
 ### Getting Help
 
