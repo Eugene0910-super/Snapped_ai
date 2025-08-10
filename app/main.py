@@ -8,11 +8,24 @@ import time
 import logging
 import platform
 from contextlib import asynccontextmanager
+import importlib.metadata
 
 from app.api.api import api_router
 from app.core.config import settings
 from app.db.base import Base, engine
 from app.db.optimize import optimize_database
+
+# Check Pydantic version for compatibility
+try:
+    pydantic_version = importlib.metadata.version("pydantic")
+    is_pydantic_v1 = pydantic_version.startswith("1.")
+    logger = logging.getLogger(__name__)
+    logger.info(f"Using Pydantic version: {pydantic_version}")
+    if is_pydantic_v1:
+        logger.warning("Using Pydantic v1 - some features may be limited")
+except Exception:
+    # If we can't determine the version, assume it's compatible
+    is_pydantic_v1 = False
 
 # Set up logging
 logging.basicConfig(

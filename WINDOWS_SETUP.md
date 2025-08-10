@@ -10,9 +10,31 @@ This guide will help you set up and run the Snapped AI application on Windows.
 
 ## Installation
 
-### Option 1: Simplified Setup (Recommended for Windows Users)
+### Option 1: Minimal Setup (Recommended for Windows Users with Installation Issues)
 
-This option uses a simplified set of dependencies that don't require Rust.
+This option uses older package versions that don't require Rust at all.
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/Eugene0910-super/Snapped_ai.git
+   cd Snapped_ai
+   ```
+
+2. Run the minimal Windows batch script:
+   ```
+   run_windows_minimal.bat
+   ```
+
+3. Open the `.env` file and replace `your_serpapi_key_here` with your actual SerpAPI key.
+
+4. Run the batch script again:
+   ```
+   run_windows_minimal.bat
+   ```
+
+### Option 2: Simplified Setup (For Windows Users)
+
+This option uses a simplified set of dependencies with fewer Rust requirements.
 
 1. Clone the repository:
    ```
@@ -32,7 +54,7 @@ This option uses a simplified set of dependencies that don't require Rust.
    run_windows_simple.bat
    ```
 
-### Option 2: Standard Setup (Requires Rust)
+### Option 3: Standard Setup (Requires Rust)
 
 This option uses all dependencies including those that require Rust.
 
@@ -54,7 +76,7 @@ This option uses all dependencies including those that require Rust.
 
 4. Open the `.env` file and replace `your_serpapi_key_here` with your actual SerpAPI key.
 
-### Option 3: Manual Setup
+### Option 4: Manual Setup
 
 1. Clone the repository:
    ```
@@ -68,9 +90,17 @@ This option uses all dependencies including those that require Rust.
    venv\Scripts\activate
    ```
 
-3. Install simplified dependencies:
+3. Install minimal dependencies (choose one):
    ```
-   pip install -r requirements_simple.txt
+   pip install -r requirements_minimal.txt  # Minimal dependencies (no Rust)
+   ```
+   OR
+   ```
+   pip install -r requirements_simple.txt   # Simplified dependencies (some Rust)
+   ```
+   OR
+   ```
+   pip install -r requirements.txt          # Full dependencies (requires Rust)
    ```
 
 4. Create a `.env` file in the root directory with the following content:
@@ -125,13 +155,26 @@ This option uses all dependencies including those that require Rust.
    python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
-### Feature Differences in Simplified Setup
+### Feature Differences in Different Setups
 
-The simplified setup (`requirements_simple.txt`) excludes the following features:
-- Redis caching (uses in-memory caching instead)
-- orjson for faster JSON processing (uses standard JSON library instead)
+#### Minimal Setup (`requirements_minimal.txt`)
+- Uses older versions of packages that don't require Rust
+- Uses Pydantic v1 instead of v2
+- No Redis caching (uses in-memory caching instead)
+- No orjson for faster JSON processing (uses standard JSON library instead)
+- May have some compatibility issues with the latest code, but core functionality will work
 
-These differences won't affect core functionality but may slightly reduce performance for high-volume usage.
+#### Simplified Setup (`requirements_simple.txt`)
+- Uses current versions of packages but excludes those requiring Rust
+- No Redis caching (uses in-memory caching instead)
+- No orjson for faster JSON processing (uses standard JSON library instead)
+
+#### Standard Setup (`requirements.txt`)
+- Uses all dependencies including those requiring Rust
+- Includes Redis caching (if Redis is available)
+- Includes orjson for faster JSON processing
+
+These differences won't affect core functionality but may impact performance for high-volume usage.
 
 ### Getting Help
 

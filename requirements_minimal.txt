@@ -1,0 +1,22 @@
+# Absolute minimal dependencies without any Rust requirements
+# Core dependencies
+fastapi==0.95.2
+uvicorn==0.22.0
+python-multipart==0.0.6
+httpx==0.24.1
+pillow==9.5.0
+python-dotenv==1.0.0
+
+# Database
+sqlalchemy==2.0.15
+aiofiles==23.1.0
+alembic==1.11.1
+
+# Pydantic (older version without Rust dependencies)
+pydantic==1.10.8
+
+# Production
+waitress==2.1.2
+
+# Note: This file uses older versions that don't require Rust compilation
+# Some features may be limited, but core functionality will work
