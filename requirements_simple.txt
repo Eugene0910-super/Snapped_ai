@@ -1,0 +1,26 @@
+# Core dependencies - simplified version without Rust dependencies
+fastapi>=0.104.1,<0.105.0
+uvicorn[standard]>=0.23.2,<0.24.0
+python-multipart>=0.0.6,<0.1.0
+httpx>=0.25.0,<0.26.0
+pillow>=10.0.1,<11.0.0
+python-dotenv>=1.0.0,<2.0.0
+
+# Database
+sqlalchemy>=2.0.22,<2.1.0
+aiofiles>=23.2.1,<24.0.0
+alembic>=1.12.0,<1.13.0
+
+# Pydantic
+pydantic>=2.4.2,<2.5.0
+pydantic-settings>=2.0.3,<2.1.0
+
+# Testing
+pytest>=7.4.3,<7.5.0
+pytest-asyncio>=0.21.1,<0.22.0
+
+# Production
+waitress>=2.1.2,<2.2.0  # Alternative to gunicorn for Windows
+
+# Note: orjson and redis have been removed as they require Rust
+# You can add them back later if needed after installing Rust manually
