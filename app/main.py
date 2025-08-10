@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 import os
+import sys
 import time
 import logging
+import platform
 from contextlib import asynccontextmanager
 
 from app.api.api import api_router
@@ -16,22 +18,40 @@ from app.db.optimize import optimize_database
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("app.log"),
+    ]
 )
 logger = logging.getLogger(__name__)
+
+# Log system information
+logger.info(f"Python version: {platform.python_version()}")
+logger.info(f"Operating System: {platform.system()} {platform.release()}")
+logger.info(f"Platform: {platform.platform()}")
 
 # Startup and shutdown events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create database tables and optimize
-    logger.info("Initializing database...")
-    Base.metadata.create_all(bind=engine)
-    optimize_database()
-    logger.info("Database initialized successfully.")
+    try:
+        logger.info("Initializing database...")
+        Base.metadata.create_all(bind=engine)
+        optimize_database()
+        logger.info("Database initialized successfully.")
+        
+        # Create uploads directory if it doesn't exist
+        os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
+        logger.info(f"Upload directory created at: {settings.UPLOAD_FOLDER}")
+        
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}", exc_info=True)
+        raise
     
     yield
     
     # Shutdown: Clean up resources
-    logger.info("Shutting down...")
+    logger.info("Shutting down application...")
 
 # Create FastAPI app
 app = FastAPI(
@@ -85,9 +105,28 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app", 
-        host=settings.HOST, 
-        port=settings.PORT,
-        reload=True
-    )
+    
+    # Log server startup information
+    logger.info(f"Starting server on {settings.HOST}:{settings.PORT}")
+    logger.info(f"API documentation will be available at http://{settings.HOST}:{settings.PORT}/docs")
+    
+    # Check if running on Windows
+    if platform.system() == "Windows":
+        logger.info("Running on Windows - using uvicorn directly")
+        uvicorn.run(
+            "app.main:app", 
+            host=settings.HOST, 
+            port=settings.PORT,
+            reload=True,
+            log_level="info"
+        )
+    else:
+        # For Linux/Mac, uvicorn with workers is recommended
+        logger.info("Running on Unix-like system - using uvicorn with workers")
+        uvicorn.run(
+            "app.main:app", 
+            host=settings.HOST, 
+            port=settings.PORT,
+            reload=True,
+            log_level="info"
+        )
