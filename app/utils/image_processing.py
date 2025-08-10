@@ -1,25 +1,26 @@
 import os
 import uuid
 import logging
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Any
 from PIL import Image
 from fastapi import UploadFile, HTTPException
 import aiofiles
 from app.core.config import settings
 from app.utils.performance import run_in_threadpool
+from app.services.cloudinary_service import upload_image, get_image_url
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
-async def save_upload_file(upload_file: UploadFile) -> str:
+async def save_upload_file(upload_file: UploadFile) -> Dict[str, Any]:
     """
-    Save an uploaded file to the uploads directory
+    Save an uploaded file to the uploads directory and optionally to Cloudinary
     
     Args:
         upload_file: The uploaded file
         
     Returns:
-        The path to the saved file
+        Dict containing file path and Cloudinary info if enabled
     """
     # Check if the file is allowed
     if not is_allowed_file(upload_file.filename):
@@ -45,12 +46,30 @@ async def save_upload_file(upload_file: UploadFile) -> str:
             await out_file.write(content)
         
         logger.info(f"File saved successfully: {file_path}")
-        return file_path
+        
+        # Upload to Cloudinary if enabled
+        cloudinary_result = None
+        if settings.USE_CLOUDINARY:
+            try:
+                cloudinary_result = await run_in_threadpool(
+                    lambda: upload_image(file_path, folder="snapped_ai_uploads")
+                )
+                logger.info(f"File uploaded to Cloudinary: {cloudinary_result.get('public_id')}")
+            except Exception as e:
+                logger.error(f"Error uploading to Cloudinary: {str(e)}")
+                # Continue with local file if Cloudinary upload fails
+        
+        return {
+            "file_path": file_path,
+            "cloudinary_public_id": cloudinary_result.get("public_id") if cloudinary_result else None,
+            "cloudinary_url": cloudinary_result.get("secure_url") if cloudinary_result else None
+        }
     except Exception as e:
         logger.error(f"Error saving file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving file: {str(e)}")
 
-async def clip_image(image_path: str, x: int, y: int, width: int, height: int) -> str:
+async def clip_image(image_path: str, x: int, y: int, width: int, height: int, 
+                original_cloudinary_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Clip an image to the specified dimensions
     
@@ -60,9 +79,10 @@ async def clip_image(image_path: str, x: int, y: int, width: int, height: int) -
         y: Y coordinate of the top-left corner
         width: Width of the clipped area
         height: Height of the clipped area
+        original_cloudinary_id: Cloudinary public ID of the original image
         
     Returns:
-        The path to the clipped image
+        Dict containing file path and Cloudinary info if enabled
     """
     # Validate input parameters
     if width <= 0 or height <= 0:
@@ -74,7 +94,25 @@ async def clip_image(image_path: str, x: int, y: int, width: int, height: int) -
             _clip_image_sync, image_path, x, y, width, height
         )
         logger.info(f"Image clipped successfully: {clipped_image_path}")
-        return clipped_image_path
+        
+        # Upload to Cloudinary if enabled
+        cloudinary_result = None
+        if settings.USE_CLOUDINARY:
+            try:
+                cloudinary_result = await run_in_threadpool(
+                    lambda: upload_image(clipped_image_path, folder="snapped_ai_clipped")
+                )
+                logger.info(f"Clipped image uploaded to Cloudinary: {cloudinary_result.get('public_id')}")
+            except Exception as e:
+                logger.error(f"Error uploading clipped image to Cloudinary: {str(e)}")
+                # Continue with local file if Cloudinary upload fails
+        
+        return {
+            "file_path": clipped_image_path,
+            "cloudinary_public_id": cloudinary_result.get("public_id") if cloudinary_result else None,
+            "cloudinary_url": cloudinary_result.get("secure_url") if cloudinary_result else None,
+            "original_cloudinary_public_id": original_cloudinary_id
+        }
     except Exception as e:
         logger.error(f"Error clipping image: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error clipping image: {str(e)}")

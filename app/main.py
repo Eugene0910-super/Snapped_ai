@@ -14,6 +14,7 @@ from app.api.api import api_router
 from app.core.config import settings
 from app.db.base import Base, engine
 from app.db.optimize import optimize_database
+from app.db.init_db import init_db
 
 # Check Pydantic version for compatibility
 try:
@@ -49,13 +50,26 @@ async def lifespan(app: FastAPI):
     # Startup: Create database tables and optimize
     try:
         logger.info("Initializing database...")
-        Base.metadata.create_all(bind=engine)
+        await init_db()
         optimize_database()
         logger.info("Database initialized successfully.")
         
-        # Create uploads directory if it doesn't exist
-        os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
-        logger.info(f"Upload directory created at: {settings.UPLOAD_FOLDER}")
+        # Initialize Cloudinary if enabled
+        if settings.USE_CLOUDINARY:
+            try:
+                import cloudinary
+                cloudinary.config(
+                    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+                    api_key=settings.CLOUDINARY_API_KEY,
+                    api_secret=settings.CLOUDINARY_API_SECRET,
+                    secure=True
+                )
+                logger.info("Cloudinary initialized successfully")
+            except ImportError:
+                logger.warning("Cloudinary package not installed. Using local storage instead.")
+            except Exception as e:
+                logger.error(f"Error initializing Cloudinary: {str(e)}")
+                logger.warning("Continuing without Cloudinary. Using local storage instead.")
         
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}", exc_info=True)
@@ -94,7 +108,7 @@ async def add_process_time_header(request: Request, call_next):
 
 # Mount static files
 os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
-app.mount("/static", StaticFiles(directory=settings.UPLOAD_FOLDER), name="static")
+app.mount("/static", StaticFiles(directory=settings.STATIC_FOLDER), name="static")
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)

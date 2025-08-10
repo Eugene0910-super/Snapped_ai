@@ -1,10 +1,13 @@
 from pydantic_settings import BaseSettings
 from typing import Optional, List, Set
 import os
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
@@ -27,8 +30,15 @@ class Settings(BaseSettings):
     
     # Upload settings
     UPLOAD_FOLDER: str = "app/static/uploads"
+    STATIC_FOLDER: str = "app/static"
     ALLOWED_EXTENSIONS: Set[str] = {"png", "jpg", "jpeg", "gif"}
     MAX_CONTENT_LENGTH: int = int(os.getenv("MAX_CONTENT_LENGTH", "16777216"))  # 16MB
+    
+    # Cloudinary settings
+    USE_CLOUDINARY: bool = os.getenv("USE_CLOUDINARY", "false").lower() == "true"
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
     
     # Server settings
     HOST: str = os.getenv("HOST", "0.0.0.0")

@@ -50,14 +50,20 @@ A FastAPI backend for finding similar products from uploaded images.
    ```
 
 4. Set up environment variables:
-   - Create a `.env` file in the root directory
+   - Create a `.env` file in the root directory (you can copy from `.env.example`)
    - Add your SerpAPI API key and other configuration options:
      ```
      SERPAPI_API_KEY=your_serpapi_api_key
      DATABASE_URL=sqlite:///./app.db
      MAX_SIMILAR_PRODUCTS=30
-     HOST=127.0.0.1
+     HOST=0.0.0.0
      PORT=12000
+     
+     # Cloudinary settings (optional)
+     CLOUDINARY_CLOUD_NAME=your_cloud_name
+     CLOUDINARY_API_KEY=your_api_key
+     CLOUDINARY_API_SECRET=your_api_secret
+     USE_CLOUDINARY=false
      ```
 
 5. Initialize the database:
@@ -120,6 +126,35 @@ The application is optimized for fast response times:
    - Request timing middleware
    - Performance logging
    - Benchmarking tools
+
+## Image Storage Options
+
+The application supports two options for storing uploaded images:
+
+1. **Local Storage** (default):
+   - Images are stored in the `app/static/uploads` directory
+   - Served directly from the FastAPI application
+   - Simple setup with no external dependencies
+   - Suitable for development and small-scale deployments
+
+2. **Cloudinary Storage** (optional):
+   - Images are stored in the Cloudinary cloud service
+   - Automatic CDN distribution for faster global access
+   - Image transformations and optimizations
+   - Better scalability for production deployments
+
+To enable Cloudinary storage:
+1. Install the Cloudinary package: `pip install cloudinary`
+2. Set up your Cloudinary credentials in the `.env` file:
+   ```
+   CLOUDINARY_CLOUD_NAME=your_cloud_name
+   CLOUDINARY_API_KEY=your_api_key
+   CLOUDINARY_API_SECRET=your_api_secret
+   USE_CLOUDINARY=true
+   ```
+3. Restart the application
+
+The application will automatically fall back to local storage if Cloudinary is not available or if there's an error uploading to Cloudinary.
 
 ## Running with Redis Cache
 

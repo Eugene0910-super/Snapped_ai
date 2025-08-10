@@ -13,7 +13,11 @@ async def create_image_search(
     db: Session, 
     image_path: str, 
     original_image_path: Optional[str] = None,
-    is_clipped: bool = False
+    is_clipped: bool = False,
+    cloudinary_public_id: Optional[str] = None,
+    cloudinary_url: Optional[str] = None,
+    original_cloudinary_public_id: Optional[str] = None,
+    original_cloudinary_url: Optional[str] = None
 ) -> ImageSearch:
     """
     Create a new image search record
@@ -23,6 +27,10 @@ async def create_image_search(
         image_path: Path to the uploaded image
         original_image_path: Path to the original image before clipping
         is_clipped: Whether the image was clipped
+        cloudinary_public_id: Cloudinary public ID of the image
+        cloudinary_url: Cloudinary URL of the image
+        original_cloudinary_public_id: Cloudinary public ID of the original image
+        original_cloudinary_url: Cloudinary URL of the original image
         
     Returns:
         Created ImageSearch object
@@ -30,7 +38,11 @@ async def create_image_search(
     db_search = ImageSearch(
         image_path=image_path,
         original_image_path=original_image_path,
-        is_clipped=is_clipped
+        is_clipped=is_clipped,
+        cloudinary_public_id=cloudinary_public_id,
+        cloudinary_url=cloudinary_url,
+        original_cloudinary_public_id=original_cloudinary_public_id,
+        original_cloudinary_url=original_cloudinary_url
     )
     db.add(db_search)
     db.commit()

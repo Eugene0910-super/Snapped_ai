@@ -47,7 +47,8 @@ async def upload_image(
     """
     try:
         # Save the uploaded file
-        file_path = await save_upload_file(file)
+        upload_result = await save_upload_file(file)
+        file_path = upload_result["file_path"]
         logger.info(f"Image uploaded: {file_path}")
         
         # Optimize the image if requested
@@ -55,7 +56,12 @@ async def upload_image(
             file_path = await optimize_image(file_path, max_size)
             logger.info(f"Image optimized: {file_path}")
         
-        return {"image_path": file_path, "message": "Image uploaded successfully"}
+        return {
+            "image_path": file_path, 
+            "cloudinary_public_id": upload_result.get("cloudinary_public_id"),
+            "cloudinary_url": upload_result.get("cloudinary_url"),
+            "message": "Image uploaded successfully"
+        }
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
@@ -65,13 +71,15 @@ async def upload_image(
 
 @router.post("/clip", response_model=ImageClipResponse)
 async def clip_uploaded_image(
-    clip_request: ImageClipRequest
+    clip_request: ImageClipRequest,
+    cloudinary_public_id: Optional[str] = Form(None)
 ):
     """
     Clip an uploaded image to the specified dimensions
     
     Args:
         clip_request: Request containing image path and clipping coordinates
+        cloudinary_public_id: Cloudinary public ID of the original image
         
     Returns:
         ImageClipResponse with the path to the clipped image
@@ -94,19 +102,23 @@ async def clip_uploaded_image(
             )
         
         # Clip the image
-        clipped_image_path = await clip_image(
+        clip_result = await clip_image(
             clip_request.image_path, 
             clip_request.x, 
             clip_request.y, 
             clip_request.width, 
-            clip_request.height
+            clip_request.height,
+            cloudinary_public_id
         )
         
-        logger.info(f"Image clipped: {clipped_image_path}")
+        logger.info(f"Image clipped: {clip_result['file_path']}")
         
         return {
-            "image_path": clipped_image_path, 
+            "image_path": clip_result["file_path"], 
             "original_image_path": clip_request.image_path,
+            "cloudinary_public_id": clip_result.get("cloudinary_public_id"),
+            "cloudinary_url": clip_result.get("cloudinary_url"),
+            "original_cloudinary_public_id": clip_result.get("original_cloudinary_public_id"),
             "message": "Image clipped successfully"
         }
     except HTTPException:
@@ -123,7 +135,8 @@ async def clip_uploaded_image_form(
     x: int = Form(...),
     y: int = Form(...),
     width: int = Form(...),
-    height: int = Form(...)
+    height: int = Form(...),
+    cloudinary_public_id: Optional[str] = Form(None)
 ):
     """
     Clip an uploaded image to the specified dimensions using form data
@@ -135,13 +148,17 @@ async def clip_uploaded_image_form(
         width=width,
         height=height
     )
-    return await clip_uploaded_image(clip_request)
+    return await clip_uploaded_image(clip_request, cloudinary_public_id)
 
 @router.post("/search", response_model=SimilarProductsResponse)
 async def search_products(
     image_path: str = Form(...),
     original_image_path: Optional[str] = Form(None),
     is_clipped: bool = Form(False),
+    cloudinary_public_id: Optional[str] = Form(None),
+    cloudinary_url: Optional[str] = Form(None),
+    original_cloudinary_public_id: Optional[str] = Form(None),
+    original_cloudinary_url: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
 ):
@@ -174,13 +191,21 @@ async def search_products(
             db, 
             image_path, 
             original_image_path, 
-            is_clipped
+            is_clipped,
+            cloudinary_public_id,
+            cloudinary_url,
+            original_cloudinary_public_id,
+            original_cloudinary_url
         )
         
-        # Convert local file path to URL for SerpAPI
-        # In a production environment, you would upload the image to a public URL
-        # For this example, we'll assume the image is accessible via a URL
-        image_url = f"https://{settings.HOST}:{settings.PORT}/static/{os.path.basename(image_path)}"
+        # Use Cloudinary URL if available, otherwise use local path
+        if cloudinary_url:
+            image_url = cloudinary_url
+            logger.info(f"Using Cloudinary URL for search: {image_url}")
+        else:
+            # Convert local file path to URL for SerpAPI
+            image_url = f"https://{settings.HOST}:{settings.PORT}/static/uploads/{os.path.basename(image_path)}"
+            logger.info(f"Using local URL for search: {image_url}")
         
         logger.info(f"Searching for products with image: {image_url}")
         
@@ -221,6 +246,10 @@ async def search_products(
             "image_path": db_search.image_path,
             "original_image_path": db_search.original_image_path,
             "is_clipped": db_search.is_clipped,
+            "cloudinary_public_id": db_search.cloudinary_public_id,
+            "cloudinary_url": db_search.cloudinary_url,
+            "original_cloudinary_public_id": db_search.original_cloudinary_public_id,
+            "original_cloudinary_url": db_search.original_cloudinary_url,
             "results": results,
             "total_results": len(results)
         }
@@ -283,6 +312,10 @@ async def get_search_results(
         "image_path": db_search.image_path,
         "original_image_path": db_search.original_image_path,
         "is_clipped": db_search.is_clipped,
+        "cloudinary_public_id": db_search.cloudinary_public_id,
+        "cloudinary_url": db_search.cloudinary_url,
+        "original_cloudinary_public_id": db_search.original_cloudinary_public_id,
+        "original_cloudinary_url": db_search.original_cloudinary_url,
         "results": results,
         "total_results": len(results)
     }
@@ -340,6 +373,10 @@ async def get_recent_search_results(
                 original_image_path=db_search.original_image_path,
                 is_clipped=db_search.is_clipped,
                 search_time=db_search.search_time,
+                cloudinary_public_id=db_search.cloudinary_public_id,
+                cloudinary_url=db_search.cloudinary_url,
+                original_cloudinary_public_id=db_search.original_cloudinary_public_id,
+                original_cloudinary_url=db_search.original_cloudinary_url,
                 results=results
             )
         )

@@ -30,6 +30,10 @@ class ImageSearchBase(BaseModel):
     image_path: str
     original_image_path: Optional[str] = None
     is_clipped: bool = False
+    cloudinary_public_id: Optional[str] = None
+    cloudinary_url: Optional[str] = None
+    original_cloudinary_public_id: Optional[str] = None
+    original_cloudinary_url: Optional[str] = None
 
 class ImageSearchCreate(ImageSearchBase):
     pass
@@ -54,11 +58,17 @@ class ImageClipRequest(BaseModel):
 # Response Schemas
 class ImageUploadResponse(BaseModel):
     image_path: str
+    cloudinary_public_id: Optional[str] = None
+    cloudinary_url: Optional[str] = None
     message: str = "Image uploaded successfully"
 
 class ImageClipResponse(BaseModel):
     image_path: str
     original_image_path: str
+    cloudinary_public_id: Optional[str] = None
+    cloudinary_url: Optional[str] = None
+    original_cloudinary_public_id: Optional[str] = None
+    original_cloudinary_url: Optional[str] = None
     message: str = "Image clipped successfully"
 
 class SimilarProductsResponse(BaseModel):
@@ -67,6 +77,10 @@ class SimilarProductsResponse(BaseModel):
     image_path: str
     original_image_path: Optional[str] = None
     is_clipped: bool
+    cloudinary_public_id: Optional[str] = None
+    cloudinary_url: Optional[str] = None
+    original_cloudinary_public_id: Optional[str] = None
+    original_cloudinary_url: Optional[str] = None
     results: List[SearchResult]
     total_results: int
 

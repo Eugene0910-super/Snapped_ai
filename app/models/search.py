@@ -12,6 +12,12 @@ class ImageSearch(Base):
     search_time = Column(DateTime, default=datetime.utcnow, index=True)
     is_clipped = Column(Boolean, default=False)  # Whether the image was clipped
     
+    # Cloudinary fields
+    cloudinary_public_id = Column(String, nullable=True)  # Cloudinary public ID
+    cloudinary_url = Column(String, nullable=True)  # Cloudinary URL
+    original_cloudinary_public_id = Column(String, nullable=True)  # Original image Cloudinary public ID
+    original_cloudinary_url = Column(String, nullable=True)  # Original image Cloudinary URL
+    
     # Relationship with search results
     results = relationship("SearchResult", back_populates="search", cascade="all, delete-orphan")
     

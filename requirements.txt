@@ -19,6 +19,7 @@ waitress==2.1.2
 
 # For image processing
 numpy==1.26.4
+cloudinary==1.36.0
 
 # For testing
 pytest==8.0.0
