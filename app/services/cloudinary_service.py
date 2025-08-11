@@ -6,6 +6,23 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+def normalize_path(path: str) -> str:
+    """
+    Normalize a path to use forward slashes and ensure it's a valid path
+    
+    Args:
+        path: The path to normalize
+        
+    Returns:
+        Normalized path
+    """
+    # Replace backslashes with forward slashes
+    normalized = path.replace('\\', '/')
+    # Remove any double slashes
+    while '//' in normalized:
+        normalized = normalized.replace('//', '/')
+    return normalized
+
 # Only import cloudinary if it's enabled
 if settings.USE_CLOUDINARY:
     try:
@@ -31,6 +48,9 @@ def upload_image(image_path: str, folder: str = "snapped_ai") -> Dict:
     Returns:
         Dict containing upload result with public_id, secure_url, etc.
     """
+    # Normalize the image path
+    image_path = normalize_path(image_path)
+      
     if not CLOUDINARY_AVAILABLE or not settings.USE_CLOUDINARY:
         logger.warning("Cloudinary not available or disabled. Using local storage.")
         return {
@@ -49,6 +69,11 @@ def upload_image(image_path: str, folder: str = "snapped_ai") -> Dict:
     
     try:
         logger.info(f"Uploading image to Cloudinary: {image_path}")
+        # Ensure the file exists
+        if not os.path.exists(image_path):
+            logger.error(f"File not found: {image_path}")
+            raise FileNotFoundError(f"File not found: {image_path}")
+            
         result = cloudinary.uploader.upload(
             image_path,
             folder=folder,
@@ -202,7 +227,10 @@ def crop_image(public_id: str, x: int, y: int, width: int, height: int, folder: 
         }
         
         # Generate a new public_id for the cropped image
-        new_public_id = f"{folder}/{os.path.basename(public_id)}_cropped"
+        basename = os.path.basename(public_id)
+        basename = normalize_path(basename)
+        new_public_id = f"{folder}/{basename}_cropped"
+        
         
         # Create a new cropped image using the explicit method with eager transformations
         result = cloudinary.uploader.explicit(
