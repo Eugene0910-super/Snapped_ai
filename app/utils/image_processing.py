@@ -12,6 +12,23 @@ from app.services.cloudinary_service import upload_image, get_image_url
 # Set up logging
 logger = logging.getLogger(__name__)
 
+def normalize_path(path: str) -> str:
+    """
+    Normalize a path to use forward slashes and ensure it's a valid path
+    
+    Args:
+        path: The path to normalize
+        
+    Returns:
+        Normalized path
+    """
+    # Replace backslashes with forward slashes
+    normalized = path.replace('\\', '/')
+    # Remove any double slashes
+    while '//' in normalized:
+        normalized = normalized.replace('//', '/')
+    return normalized
+    
 async def save_upload_file(upload_file: UploadFile) -> Dict[str, Any]:
     """
     Save an uploaded file to Cloudinary or local storage
@@ -37,13 +54,19 @@ async def save_upload_file(upload_file: UploadFile) -> Dict[str, Any]:
         # Generate a unique filename
         file_extension = os.path.splitext(upload_file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_extension}"
+        # Normalize the filename to use forward slashes
+        unique_filename = normalize_path(unique_filename)
         
         # Try to upload to Cloudinary first if enabled
         cloudinary_result = None
         if settings.USE_CLOUDINARY:
             try:
                 # Create a temporary file for Cloudinary upload
-                temp_file_path = os.path.join("/tmp", unique_filename)
+                # Use normalized path for temp file
+                temp_dir = "/tmp"
+                os.makedirs(temp_dir, exist_ok=True)
+                temp_file_path = normalize_path(os.path.join(temp_dir, unique_filename))
+                logger.info(f"Creating temporary file at: {temp_file_path}")
                 async with aiofiles.open(temp_file_path, 'wb') as temp_file:
                     await temp_file.write(content)
                 
@@ -75,7 +98,7 @@ async def save_upload_file(upload_file: UploadFile) -> Dict[str, Any]:
         # Save locally if Cloudinary is not enabled, failed, or we want a local copy
         # Create uploads directory if it doesn't exist
         os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
-        file_path = os.path.join(settings.UPLOAD_FOLDER, unique_filename)
+        file_path = normalize_path(os.path.join(settings.UPLOAD_FOLDER, unique_filename))
         
         async with aiofiles.open(file_path, 'wb') as out_file:
             # Seek to the beginning if we've already read the content
@@ -209,7 +232,10 @@ def _clip_image_sync(image_path: str, x: int, y: int, width: int, height: int) -
     # Generate a new filename for the clipped image
     file_name, file_extension = os.path.splitext(os.path.basename(image_path))
     clipped_filename = f"{file_name}_clipped{file_extension}"
-    clipped_image_path = os.path.join(settings.UPLOAD_FOLDER, clipped_filename)
+
+    # Ensure the upload folder exists
+    os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
+    clipped_image_path = normalize_path(os.path.join(settings.UPLOAD_FOLDER, clipped_filename))
     
     # Save the clipped image
     clipped_img.save(clipped_image_path)
@@ -279,7 +305,10 @@ def _optimize_image_sync(image_path: str, max_size: Optional[int] = None) -> str
     # Generate a new filename for the optimized image
     file_name, file_extension = os.path.splitext(os.path.basename(image_path))
     optimized_filename = f"{file_name}_optimized{file_extension}"
-    optimized_path = os.path.join(settings.UPLOAD_FOLDER, optimized_filename)
+    
+    # Ensure the upload folder exists
+    os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
+    optimized_path = normalize_path(os.path.join(settings.UPLOAD_FOLDER, optimized_filename))
     
     # Save the optimized image with reduced quality
     if file_extension.lower() in ['.jpg', '.jpeg']:
